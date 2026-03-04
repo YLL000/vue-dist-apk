@@ -1,53 +1,67 @@
-name: Build Android APK
+name: Build Android APK (Debug)
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Use system Node.js (verify)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # 根据你的项目需求调整，推荐 LTS 版本
+          cache: 'pnpm'      # 自动缓存 pnpm 依赖
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          run_install: false
+
+      - name: Install dependencies
         run: |
-          set -eux
-          node -v
-          npm -v
+          pnpm install --frozen-lockfile
+          # 确保 capacitor 核心包已安装 (防止 package.json 遗漏)
+          pnpm add @capacitor/core @capacitor/android --save-if-not-present
 
-      - name: Install pnpm to /usr/local/bin
+      - name: Build Web Assets (Vite)
         run: |
-          set -eux
-          curl -fsSL https://get.pnpm.io/install.sh | sh -s -- -v -d /usr/local
+          pnpm build
+          # 验证 dist 目录是否生成
+          ls -la dist
 
-      - name: Install deps & build
+      - name: Sync Capacitor Android
         run: |
-          set -eux
-          /usr/local/bin/pnpm install
-          /usr/local/bin/pnpm build
+          # 关键：不要运行 init！直接使用现有的 capacitor.config.ts
+          # sync 会将 dist 目录的内容复制到 android 项目，并更新插件
+          npx cap sync android
 
-      - name: Setup Capacitor
-        run: |
-          set -eux
-          /usr/local/bin/pnpm add @capacitor/core @capacitor/android
-          npx @capacitor/cli@latest init --web-dir dist --app-id io.yll000.vue-dist-apk --app-name "Vue Dist APK" --no-interactive
-          npx @capacitor/cli@latest add android --no-interactive
-          npx @capacitor/cli@latest sync android
-
-      - name: Build APK
+      - name: Build Debug APK
         working-directory: android
         run: |
-          set -eux
-          ./gradlew assembleRelease
+          # 确保 gradlew 有执行权限
+          chmod +x gradlew
+          
+          # 构建 Debug 版本
+          # 优点：自动使用 debug key 签名，可直接安装到手机测试
+          # 缺点：不能用于 Google Play 发布 (发布需要 release 签名)
+          ./gradlew assembleDebug
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vue-dist-apk-release
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          name: vue-dist-apk-debug
+          # Debug APK 的标准输出路径
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
