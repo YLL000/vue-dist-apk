@@ -1,50 +1,53 @@
 name: Build Android APK
 
 on:
-    push:
+  push:
     branches: [main]
 
 permissions:
-    contents: read
-    packages: write
+  contents: read
+  packages: write
 
 jobs:
-    build:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-    node-version: '20'
-    cache: 'pnpm'
+      - name: Use system Node.js (verify)
+        run: |
+          set -eux
+          node -v
+          npm -v
 
-    - name: Install pnpm
-    uses: pnpm/action-setup@v4
+      - name: Install pnpm to /usr/local/bin
+        run: |
+          set -eux
+          curl -fsSL https://get.pnpm.io/install.sh | sh -s -- -v -d /usr/local
 
-    - name: Install dependencies
-    run: pnpm install
+      - name: Install deps & build
+        run: |
+          set -eux
+          /usr/local/bin/pnpm install
+          /usr/local/bin/pnpm build
 
-    - name: Build Vue app
-    run: pnpm build
+      - name: Setup Capacitor
+        run: |
+          set -eux
+          /usr/local/bin/pnpm add @capacitor/core @capacitor/android
+          npx @capacitor/cli@latest init --web-dir dist --app-id io.yll000.vue-dist-apk --app-name "Vue Dist APK" --no-interactive
+          npx @capacitor/cli@latest add android --no-interactive
+          npx @capacitor/cli@latest sync android
 
-    - name: Install Capacitor CLI
-    run: npx @capacitor/cli@latest init --web-dir dist --app-id io.agentic.app --app-name Agentic --no-interactive
+      - name: Build APK
+        working-directory: android
+        run: |
+          set -eux
+          ./gradlew assembleRelease
 
-    - name: Add Android platform
-    run: npx @capacitor/cli@latest add android --no-interactive
-
-    - name: Sync web assets
-    run: npx @capacitor/cli@latest sync android
-
-    - name: Build APK (Release)
-    working-directory: android
-    run: ./gradlew assembleRelease
-
-    - name: Upload APK artifact
-    uses: actions/upload-artifact@v4
-    with:
-    name: agentic-app-release
-    path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vue-dist-apk-release
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
