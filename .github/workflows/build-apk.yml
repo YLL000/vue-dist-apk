@@ -34,10 +34,10 @@ jobs:
 
       # 4. 设置 Java 环境 (Android 构建必须)
       # Ubuntu 镜像虽自带 Java，但显式指定 JDK 17 能避免很多 Gradle 兼容性问题
-      - name: set up JDK 17
+      - name: set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'zulu'
 
       # 5. 设置 Gradle 缓存 (大幅缩短后续构建时间)
